@@ -43,15 +43,17 @@ Make it executable:
 chmod +x ./dota-mmr-history-tracker-linux-amd64
 ```
 
-Sync your MMR history:
+First import the newest part of your MMR history:
 
 ```bash
 ./dota-mmr-history-tracker-linux-amd64 sync \
   --username your_steam_username \
   --qr \
-  --auto \
-  --timeout 10m
+  --matches 5000 \
+  --timeout 45m
 ```
+
+For later updates, use `--auto` so the sync stops when it reaches a match already stored in your database.
 
 Start the dashboard:
 
@@ -73,15 +75,17 @@ Download this release asset:
 dota-mmr-history-tracker-windows-amd64.exe
 ```
 
-Open PowerShell in the download folder and sync your MMR history:
+Open PowerShell in the download folder and import the newest part of your MMR history:
 
 ```powershell
 .\dota-mmr-history-tracker-windows-amd64.exe sync `
   --username your_steam_username `
   --qr `
-  --auto `
-  --timeout 10m
+  --matches 5000 `
+  --timeout 45m
 ```
+
+For later updates, use `--auto` so the sync stops when it reaches a match already stored in your database.
 
 Start the dashboard:
 
@@ -117,7 +121,9 @@ Use this for normal daily/weekly updates:
   --timeout 10m
 ```
 
-`--auto` loads known match IDs from SQLite, starts at the newest GameCoordinator page, imports only rows newer than the first known match, and stops when it sees a known `match_id`. You can add `--matches N` as an optional safety cap; it is intentionally omitted here because the default is fine for normal incremental updates.
+`--auto` loads known match IDs from SQLite, starts at the newest GameCoordinator page, imports only rows newer than the first known match, and stops when it sees a known `match_id`.
+
+Important: the default `--matches` value is `500` ranked MMR rows. It is not "all history". With `--auto`, that default is only a safety cap: the sync stops earlier if it reaches a known match. If you have played more than 500 ranked matches since your last sync, pass a larger cap such as `--matches 5000`.
 
 ### Initial import / newest history
 
