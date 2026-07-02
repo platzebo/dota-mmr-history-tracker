@@ -114,7 +114,10 @@ func (s *Store) KnownMatchIDs() (map[uint64]bool, error) {
 	return out, rows.Err()
 }
 
-const autoBackfillCursorKey = "auto_backfill_start_at_match_id"
+const (
+	autoBackfillCursorKey   = "auto_backfill_start_at_match_id"
+	autoBackfillCompleteKey = "auto_backfill_complete"
+)
 
 func (s *Store) AutoBackfillCursor() (uint64, bool, error) {
 	var value string
@@ -140,6 +143,28 @@ func (s *Store) SetAutoBackfillCursor(matchID uint64) error {
 
 func (s *Store) ClearAutoBackfillCursor() error {
 	_, err := s.db.Exec(`DELETE FROM sync_state WHERE key = ?`, autoBackfillCursorKey)
+	return err
+}
+
+func (s *Store) AutoBackfillComplete() (bool, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM sync_state WHERE key = ?`, autoBackfillCompleteKey).Scan(&value)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return value == "1" || value == "true", nil
+}
+
+func (s *Store) SetAutoBackfillComplete(complete bool) error {
+	value := "0"
+	if complete {
+		value = "1"
+	}
+	_, err := s.db.Exec(`INSERT INTO sync_state (key, value, updated_at) VALUES (?, ?, unixepoch())
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, autoBackfillCompleteKey, value)
 	return err
 }
 

@@ -119,8 +119,8 @@ Use this for normal updates and long initial/backfill syncs:
 
 `--auto` has two resume paths:
 
-1. If there is no saved older-history cursor, it starts at the newest GameCoordinator page, imports new rows, and stops when it reaches a `match_id` already stored in SQLite.
-2. If a previous auto run stopped before the end of history, it resumes older pages from the saved `next_start_at_match_id` cursor instead of making you calculate `--skip-pages` manually.
+1. If full history is not marked complete yet, it scans past known matches and saves a `next_start_at_match_id` cursor after each run. This lets long backfills continue automatically instead of making you calculate `--skip-pages` manually.
+2. Once the GameCoordinator history is exhausted, the cursor is cleared and full history is marked complete. Future auto runs then use known match IDs to stop quickly after importing only newly played matches.
 
 The default `--matches` value is `500` ranked MMR rows per run. That is a per-run cap, not "all history". If you want bigger chunks per run, add for example `--matches 5000 --timeout 45m`. If a run hits the cap, times out, or returns a GC error after successful pages, already fetched rows are saved and the cursor is updated so the next `--auto` run continues.
 

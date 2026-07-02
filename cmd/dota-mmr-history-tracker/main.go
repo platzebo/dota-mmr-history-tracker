@@ -112,6 +112,13 @@ func runSync(args []string) {
 			startAt = cursor
 			known = nil
 			fmt.Printf("auto sync: resuming older history from match_id=%d\n", cursor)
+		} else if complete, err := s.AutoBackfillComplete(); err != nil {
+			log.Fatal(err)
+		} else if !complete {
+			known = nil
+			fmt.Println("auto sync: full history is not marked complete yet; scanning past known matches and saving a resume cursor")
+		} else {
+			fmt.Println("auto sync: full history is marked complete; newest scan will stop at the first known match")
 		}
 	}
 
@@ -127,10 +134,16 @@ func runSync(args []string) {
 			if cursorErr := s.ClearAutoBackfillCursor(); cursorErr != nil {
 				log.Fatal(cursorErr)
 			}
-			fmt.Println("auto sync: reached end of available history; resume cursor cleared")
+			if completeErr := s.SetAutoBackfillComplete(true); completeErr != nil {
+				log.Fatal(completeErr)
+			}
+			fmt.Println("auto sync: reached end of available history; resume cursor cleared and full history marked complete")
 		} else if !report.Stats.HitKnownMatch && report.Stats.NextStartAtMatchID != 0 {
 			if cursorErr := s.SetAutoBackfillCursor(report.Stats.NextStartAtMatchID); cursorErr != nil {
 				log.Fatal(cursorErr)
+			}
+			if completeErr := s.SetAutoBackfillComplete(false); completeErr != nil {
+				log.Fatal(completeErr)
 			}
 			fmt.Printf("auto sync: saved resume cursor match_id=%d\n", report.Stats.NextStartAtMatchID)
 		}
