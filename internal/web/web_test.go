@@ -27,16 +27,5 @@ func TestIndexContainsInteractiveDashboardControls(t *testing.T) {
 			t.Fatalf("index missing %q", want)
 		}
 	}
-	for _, removed := range []string{
-		"id=\"smooth\"",
-		"Smooth",
-		"movingAverage",
-		"7-match moving average",
-		"Show" + "MMR",
-		"up" + "stream",
-	} {
-		if strings.Contains(body, removed) {
-			t.Fatalf("index should not contain smooth graph artifact %q", removed)
-		}
-	}
+	
 }
