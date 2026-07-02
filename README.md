@@ -22,11 +22,7 @@ No manual MMR entry. No memory reading. No injection. No overlay hooks. No Dota 
 
 ## Download
 
-Use the newest GitHub Release:
-
-```text
-https://github.com/platzebo/dota-mmr-history-tracker/releases/latest
-```
+Use the newest GitHub Release: [Download latest release](https://github.com/platzebo/dota-mmr-history-tracker/releases/latest).
 
 ### Linux
 
