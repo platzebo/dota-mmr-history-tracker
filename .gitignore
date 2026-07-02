@@ -1,0 +1,7 @@
+dist/
+bin/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.tools/
