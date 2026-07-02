@@ -20,6 +20,8 @@ type Stats struct {
 	SkippedRawMatches   int
 	HitKnownMatch       bool
 	KnownMatchID        uint64
+	NextStartAtMatchID  uint64
+	Exhausted           bool
 }
 
 func FetchRankedHistory(ctx context.Context, c HistoryClient, limit, pageSize int) ([]ledger.Record, error) {
@@ -36,6 +38,10 @@ func FetchRankedHistoryWithStatsAndSkip(ctx context.Context, c HistoryClient, li
 }
 
 func FetchRankedHistoryWithKnown(ctx context.Context, c HistoryClient, limit, pageSize, skipPages int, known map[uint64]bool) ([]ledger.Record, Stats, error) {
+	return FetchRankedHistoryWithKnownFrom(ctx, c, limit, pageSize, skipPages, 0, known)
+}
+
+func FetchRankedHistoryWithKnownFrom(ctx context.Context, c HistoryClient, limit, pageSize, skipPages int, startAt uint64, known map[uint64]bool) ([]ledger.Record, Stats, error) {
 	if pageSize <= 0 || pageSize > 20 {
 		pageSize = 20
 	}
@@ -47,13 +53,13 @@ func FetchRankedHistoryWithKnown(ctx context.Context, c HistoryClient, limit, pa
 	}
 	out := make([]ledger.Record, 0, limit)
 	var stats Stats
-	var startAt uint64
 	for len(out) < limit {
 		raw, err := c.FetchPage(ctx, startAt, uint32(pageSize))
 		if err != nil {
-			return nil, stats, err
+			return out, stats, err
 		}
 		if len(raw) == 0 {
+			stats.Exhausted = true
 			break
 		}
 		stats.Pages++
@@ -67,10 +73,12 @@ func FetchRankedHistoryWithKnown(ctx context.Context, c HistoryClient, limit, pa
 			}
 		}
 		startAt = raw[len(raw)-1].MatchID
+		stats.NextStartAtMatchID = startAt
 		if stats.Pages <= skipPages {
 			stats.SkippedPages++
 			stats.SkippedRawMatches += len(raw)
 			if len(raw) < pageSize {
+				stats.Exhausted = true
 				break
 			}
 			continue
@@ -96,7 +104,11 @@ func FetchRankedHistoryWithKnown(ctx context.Context, c HistoryClient, limit, pa
 			}
 			out = append(out, r)
 		}
-		if stats.HitKnownMatch || len(raw) < pageSize {
+		if stats.HitKnownMatch {
+			break
+		}
+		if len(raw) < pageSize {
+			stats.Exhausted = true
 			break
 		}
 	}

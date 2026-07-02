@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 
@@ -42,7 +43,12 @@ func (s *Store) migrate() error {
         mmr_after INTEGER NOT NULL,
         imported_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
-    CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time);`)
+    CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time);
+    CREATE TABLE IF NOT EXISTS sync_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );`)
 	return err
 }
 
@@ -106,6 +112,35 @@ func (s *Store) KnownMatchIDs() (map[uint64]bool, error) {
 		out[id] = true
 	}
 	return out, rows.Err()
+}
+
+const autoBackfillCursorKey = "auto_backfill_start_at_match_id"
+
+func (s *Store) AutoBackfillCursor() (uint64, bool, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM sync_state WHERE key = ?`, autoBackfillCursorKey).Scan(&value)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	cursor, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, false, err
+	}
+	return cursor, true, nil
+}
+
+func (s *Store) SetAutoBackfillCursor(matchID uint64) error {
+	_, err := s.db.Exec(`INSERT INTO sync_state (key, value, updated_at) VALUES (?, ?, unixepoch())
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, autoBackfillCursorKey, strconv.FormatUint(matchID, 10))
+	return err
+}
+
+func (s *Store) ClearAutoBackfillCursor() error {
+	_, err := s.db.Exec(`DELETE FROM sync_state WHERE key = ?`, autoBackfillCursorKey)
+	return err
 }
 
 func boolInt(v bool) int {

@@ -89,13 +89,14 @@ func runSync(args []string) {
 	useQR := fs.Bool("qr", false, "authenticate by scanning a Steam mobile QR code")
 	matches := fs.Int("matches", 500, "ranked MMR rows to fetch")
 	rawDump := fs.String("dump-raw", "", "write raw Dota GC match-history rows as JSONL for debugging")
-	autoSync := fs.Bool("auto", false, "incremental sync: stop once a match ID already stored in the DB is encountered")
+	autoSync := fs.Bool("auto", false, "automatic sync: import newest rows or resume older history from the saved cursor")
 	skipPages := fs.Int("skip-pages", 0, "skip this many initial 20-match GC pages before importing; useful for backfilling older ranges")
 	pageDelay := fs.Duration("page-delay", time.Second, "delay between 20-match GC pages to avoid rate limits")
 	timeout := fs.Duration("timeout", 3*time.Minute, "sync timeout")
 	fs.Parse(args)
 
 	var known map[uint64]bool
+	var startAt uint64
 	s := openStore(*dbPath)
 	defer s.Close()
 	if *autoSync {
@@ -105,19 +106,43 @@ func runSync(args []string) {
 			log.Fatal(err)
 		}
 		fmt.Printf("auto sync: loaded %d known match IDs from %s\n", len(known), *dbPath)
+		if cursor, ok, err := s.AutoBackfillCursor(); err != nil {
+			log.Fatal(err)
+		} else if ok && *skipPages == 0 {
+			startAt = cursor
+			known = nil
+			fmt.Printf("auto sync: resuming older history from match_id=%d\n", cursor)
+		}
 	}
 
-	report, err := steamgc.FetchReport(context.Background(), steamgc.Options{Username: *username, AccessToken: *accessToken, UseQR: *useQR, Limit: *matches, Timeout: *timeout, Prompter: stdoutPrompter{}, RawDumpPath: *rawDump, PageDelay: *pageDelay, SkipPages: *skipPages, KnownMatchIDs: known})
-	if err != nil {
-		log.Fatal(err)
-	}
+	report, err := steamgc.FetchReport(context.Background(), steamgc.Options{Username: *username, AccessToken: *accessToken, UseQR: *useQR, Limit: *matches, Timeout: *timeout, Prompter: stdoutPrompter{}, RawDumpPath: *rawDump, PageDelay: *pageDelay, SkipPages: *skipPages, StartAtMatchID: startAt, KnownMatchIDs: known})
 	records := report.Records
-	if err := s.UpsertMatches(records); err != nil {
+	if len(records) > 0 {
+		if upsertErr := s.UpsertMatches(records); upsertErr != nil {
+			log.Fatal(upsertErr)
+		}
+	}
+	if *autoSync {
+		if report.Stats.Exhausted {
+			if cursorErr := s.ClearAutoBackfillCursor(); cursorErr != nil {
+				log.Fatal(cursorErr)
+			}
+			fmt.Println("auto sync: reached end of available history; resume cursor cleared")
+		} else if !report.Stats.HitKnownMatch && report.Stats.NextStartAtMatchID != 0 {
+			if cursorErr := s.SetAutoBackfillCursor(report.Stats.NextStartAtMatchID); cursorErr != nil {
+				log.Fatal(cursorErr)
+			}
+			fmt.Printf("auto sync: saved resume cursor match_id=%d\n", report.Stats.NextStartAtMatchID)
+		}
+	}
+	if err != nil {
+		fmt.Printf("synced %d ranked MMR rows into %s before error\n", len(records), *dbPath)
+		fmt.Printf("gc_scan pages=%d raw_matches=%d skipped_pages=%d skipped_raw_matches=%d with_previous_mmr=%d with_rank_change=%d ranked_rows=%d hit_known=%t known_match_id=%d next_start_at_match_id=%d exhausted=%t\n", report.Stats.Pages, report.Stats.RawMatches, report.Stats.SkippedPages, report.Stats.SkippedRawMatches, report.Stats.RowsWithPreviousMMR, report.Stats.RowsWithRankChange, report.Stats.RankedRows, report.Stats.HitKnownMatch, report.Stats.KnownMatchID, report.Stats.NextStartAtMatchID, report.Stats.Exhausted)
 		log.Fatal(err)
 	}
 	summary := ledger.Summarize(records)
 	fmt.Printf("synced %d ranked MMR rows into %s\n", len(records), *dbPath)
-	fmt.Printf("gc_scan pages=%d raw_matches=%d skipped_pages=%d skipped_raw_matches=%d with_previous_mmr=%d with_rank_change=%d ranked_rows=%d hit_known=%t known_match_id=%d\n", report.Stats.Pages, report.Stats.RawMatches, report.Stats.SkippedPages, report.Stats.SkippedRawMatches, report.Stats.RowsWithPreviousMMR, report.Stats.RowsWithRankChange, report.Stats.RankedRows, report.Stats.HitKnownMatch, report.Stats.KnownMatchID)
+	fmt.Printf("gc_scan pages=%d raw_matches=%d skipped_pages=%d skipped_raw_matches=%d with_previous_mmr=%d with_rank_change=%d ranked_rows=%d hit_known=%t known_match_id=%d next_start_at_match_id=%d exhausted=%t\n", report.Stats.Pages, report.Stats.RawMatches, report.Stats.SkippedPages, report.Stats.SkippedRawMatches, report.Stats.RowsWithPreviousMMR, report.Stats.RowsWithRankChange, report.Stats.RankedRows, report.Stats.HitKnownMatch, report.Stats.KnownMatchID, report.Stats.NextStartAtMatchID, report.Stats.Exhausted)
 	fmt.Printf("current=%d peak=%d lowest=%d total_delta=%+d\n", summary.CurrentMMR, summary.PeakMMR, summary.LowestMMR, summary.TotalChange)
 	if len(records) == 0 {
 		if report.Stats.RawMatches == 0 {

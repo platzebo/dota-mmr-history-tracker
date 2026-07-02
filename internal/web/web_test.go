@@ -18,6 +18,8 @@ func TestIndexContainsInteractiveDashboardControls(t *testing.T) {
 		"MMR per Hero",
 		"Auto sync",
 		"sync --auto",
+		"saved cursor",
+		"next_start_at_match_id",
 		"window.devicePixelRatio",
 		"hoverInfo",
 		"pointerLine",

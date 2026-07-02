@@ -39,17 +39,17 @@ Make it executable:
 chmod +x ./dota-mmr-history-tracker-linux-amd64
 ```
 
-First import the newest part of your MMR history:
+Sync your MMR history:
 
 ```bash
 ./dota-mmr-history-tracker-linux-amd64 sync \
   --username your_steam_username \
   --qr \
-  --matches 5000 \
-  --timeout 45m
+  --auto \
+  --timeout 10m
 ```
 
-For later updates, use `--auto` so the sync stops when it reaches a match already stored in your database.
+If the run stops before the oldest available history is reached, the next `--auto` run resumes from the saved cursor automatically.
 
 Start the dashboard:
 
@@ -71,17 +71,17 @@ Download this release asset:
 dota-mmr-history-tracker-windows-amd64.exe
 ```
 
-Open PowerShell in the download folder and import the newest part of your MMR history:
+Open PowerShell in the download folder and sync your MMR history:
 
 ```powershell
 .\dota-mmr-history-tracker-windows-amd64.exe sync `
   --username your_steam_username `
   --qr `
-  --matches 5000 `
-  --timeout 45m
+  --auto `
+  --timeout 10m
 ```
 
-For later updates, use `--auto` so the sync stops when it reaches a match already stored in your database.
+If the run stops before the oldest available history is reached, the next `--auto` run resumes from the saved cursor automatically.
 
 Start the dashboard:
 
@@ -105,9 +105,9 @@ The examples below use the Linux binary name. On Windows, replace it with:
 .\dota-mmr-history-tracker-windows-amd64.exe
 ```
 
-### Incremental sync
+### Automatic sync / resume
 
-Use this for normal daily/weekly updates:
+Use this for normal updates and long initial/backfill syncs:
 
 ```bash
 ./dota-mmr-history-tracker-linux-amd64 sync \
@@ -117,9 +117,12 @@ Use this for normal daily/weekly updates:
   --timeout 10m
 ```
 
-`--auto` loads known match IDs from SQLite, starts at the newest GameCoordinator page, imports only rows newer than the first known match, and stops when it sees a known `match_id`.
+`--auto` has two resume paths:
 
-Important: the default `--matches` value is `500` ranked MMR rows. It is not "all history". With `--auto`, that default is only a safety cap: the sync stops earlier if it reaches a known match. If you have played more than 500 ranked matches since your last sync, pass a larger cap such as `--matches 5000`.
+1. If there is no saved older-history cursor, it starts at the newest GameCoordinator page, imports new rows, and stops when it reaches a `match_id` already stored in SQLite.
+2. If a previous auto run stopped before the end of history, it resumes older pages from the saved `next_start_at_match_id` cursor instead of making you calculate `--skip-pages` manually.
+
+The default `--matches` value is `500` ranked MMR rows per run. That is a per-run cap, not "all history". If you want bigger chunks per run, add for example `--matches 5000 --timeout 45m`. If a run hits the cap, times out, or returns a GC error after successful pages, already fetched rows are saved and the cursor is updated so the next `--auto` run continues.
 
 ### Initial import / newest history
 

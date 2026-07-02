@@ -22,17 +22,18 @@ import (
 )
 
 type Options struct {
-	Username      string
-	AccessToken   string
-	UseQR         bool
-	Limit         int
-	Timeout       time.Duration
-	Prompter      steamauth.QRPrompter
-	RawDumpPath   string
-	PageDelay     time.Duration
-	SkipPages     int
-	KnownMatchIDs map[uint64]bool
-	QRTokenFunc   func(context.Context, steamauth.QRAuthOptions) (string, error)
+	Username       string
+	AccessToken    string
+	UseQR          bool
+	Limit          int
+	Timeout        time.Duration
+	Prompter       steamauth.QRPrompter
+	RawDumpPath    string
+	PageDelay      time.Duration
+	SkipPages      int
+	StartAtMatchID uint64
+	KnownMatchIDs  map[uint64]bool
+	QRTokenFunc    func(context.Context, steamauth.QRAuthOptions) (string, error)
 }
 
 type Report struct {
@@ -216,10 +217,10 @@ func FetchReport(ctx context.Context, opts Options) (Report, error) {
 			case *steam.SteamFailureEvent:
 				return Report{}, fmt.Errorf("steam failure: %s", e.Result.String())
 			case *dotaevents.ClientWelcomed:
-				logf(opts.Prompter, "[dota] GameCoordinator ready; fetching up to %d history rows (20 per page, skip_pages=%d, known_ids=%d, delay=%s)\n", opts.Limit, opts.SkipPages, len(opts.KnownMatchIDs), opts.PageDelay)
+				logf(opts.Prompter, "[dota] GameCoordinator ready; fetching up to %d history rows (20 per page, start_at=%d, skip_pages=%d, known_ids=%d, delay=%s)\n", opts.Limit, opts.StartAtMatchID, opts.SkipPages, len(opts.KnownMatchIDs), opts.PageDelay)
 				pc := &pageClient{dota: d2, accountID: accountID, dump: dumpEncoder, delay: opts.PageDelay, logf: func(format string, args ...any) { logf(opts.Prompter, format, args...) }}
 				go func() {
-					records, stats, err := syncer.FetchRankedHistoryWithKnown(ctx, pc, opts.Limit, 20, opts.SkipPages, opts.KnownMatchIDs)
+					records, stats, err := syncer.FetchRankedHistoryWithKnownFrom(ctx, pc, opts.Limit, 20, opts.SkipPages, opts.StartAtMatchID, opts.KnownMatchIDs)
 					resultCh <- struct {
 						report Report
 						err    error
