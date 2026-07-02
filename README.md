@@ -6,6 +6,10 @@ It logs into Steam locally via Steam Mobile QR auth, connects to the Dota 2 Game
 
 No manual MMR entry. No memory reading. No injection. No overlay hooks. No Dota client patching.
 
+## Showcase
+
+![Dota MMR History Tracker dashboard](docs/screenshots/dashboard.png)
+
 ## Features
 
 - QR-based Steam authentication; no Steam password flow in the app
