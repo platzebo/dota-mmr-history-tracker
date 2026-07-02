@@ -14,64 +14,42 @@ No manual MMR entry. No memory reading. No injection. No overlay hooks. No Dota 
 - Local SQLite database
 - Local browser dashboard with MMR graph, hover tooltips, hero names, hero stats, and recent matches
 - CSV export
-- GitHub Actions build artifacts for Linux and Windows
+- GitHub Release builds for Linux and Windows
 
-## Download / build
+## Download
 
-### Option A: GitHub Actions artifact
-
-On GitHub, open:
+Use the newest GitHub Release:
 
 ```text
-Actions -> build -> latest successful run -> Artifacts
+https://github.com/platzebo/dota-mmr-history-tracker/releases/latest
 ```
 
-Download the binary for your platform:
+### Linux
+
+Download one of these release assets:
 
 ```text
-dota-mmr-history-tracker-linux-amd64
-dota-mmr-history-tracker-linux-arm64
-dota-mmr-history-tracker-windows-amd64.exe
+dota-mmr-history-tracker-linux-amd64   # normal Intel/AMD PCs
+dota-mmr-history-tracker-linux-arm64   # ARM64 devices
 ```
 
-On Linux, make it executable:
+Make it executable:
 
 ```bash
 chmod +x ./dota-mmr-history-tracker-linux-amd64
 ```
 
-### Option B: build locally
-
-Requires Go 1.26+.
-
-```bash
-go test ./...
-go build -o dist/dota-mmr-history-tracker ./cmd/dota-mmr-history-tracker
-```
-
-Cross-compile examples:
-
-```bash
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o dist/dota-mmr-history-tracker-linux-amd64 ./cmd/dota-mmr-history-tracker
-GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o dist/dota-mmr-history-tracker-windows-amd64.exe ./cmd/dota-mmr-history-tracker
-```
-
-## Quick start
-
-Close Dota 2 before syncing. Steam may stay open.
+Sync your MMR history:
 
 ```bash
 ./dota-mmr-history-tracker-linux-amd64 sync \
   --username your_steam_username \
   --qr \
   --auto \
-  --matches 1000 \
   --timeout 10m
 ```
 
-The tool prints a terminal QR code. Scan/confirm it with the Steam mobile app. After the QR confirmation it connects to Steam CM + Dota GC and imports new ranked MMR rows.
-
-Then start the dashboard:
+Start the dashboard:
 
 ```bash
 ./dota-mmr-history-tracker-linux-amd64 serve
@@ -83,7 +61,45 @@ Open:
 http://127.0.0.1:8789
 ```
 
+### Windows
+
+Download this release asset:
+
+```text
+dota-mmr-history-tracker-windows-amd64.exe
+```
+
+Open PowerShell in the download folder and sync your MMR history:
+
+```powershell
+.\dota-mmr-history-tracker-windows-amd64.exe sync `
+  --username your_steam_username `
+  --qr `
+  --auto `
+  --timeout 10m
+```
+
+Start the dashboard:
+
+```powershell
+.\dota-mmr-history-tracker-windows-amd64.exe serve
+```
+
+Open:
+
+```text
+http://127.0.0.1:8789
+```
+
+The tool prints a terminal QR code during sync. Scan/confirm it with the Steam mobile app. After the QR confirmation it connects to Steam CM + Dota GC and imports new ranked MMR rows.
+
 ## Commands
+
+The examples below use the Linux binary name. On Windows, replace it with:
+
+```text
+.\dota-mmr-history-tracker-windows-amd64.exe
+```
 
 ### Incremental sync
 
@@ -94,11 +110,10 @@ Use this for normal daily/weekly updates:
   --username your_steam_username \
   --qr \
   --auto \
-  --matches 1000 \
   --timeout 10m
 ```
 
-`--auto` loads known match IDs from SQLite, starts at the newest GameCoordinator page, imports only rows newer than the first known match, and stops when it sees a known `match_id`.
+`--auto` loads known match IDs from SQLite, starts at the newest GameCoordinator page, imports only rows newer than the first known match, and stops when it sees a known `match_id`. You can add `--matches N` as an optional safety cap; it is intentionally omitted here because the default is fine for normal incremental updates.
 
 ### Initial import / newest history
 
@@ -164,7 +179,7 @@ Date,Unix time,MatchID,Solo Queue,HeroID,Start MMR,Rank Change
 Default SQLite database:
 
 - Linux: `$XDG_CONFIG_HOME/dota-mmr-history-tracker/ledger.sqlite` or `~/.config/dota-mmr-history-tracker/ledger.sqlite`
-- Windows: `%AppData%\\dota-mmr-history-tracker\\ledger.sqlite`
+- Windows: `%AppData%\dota-mmr-history-tracker\ledger.sqlite`
 
 Override it:
 
@@ -188,6 +203,41 @@ STEAM_ACCESS_TOKEN='...' ./dota-mmr-history-tracker-linux-amd64 sync --username 
 ## Rate-limit note
 
 One sync request/page reads 20 raw history rows. Use conservative batch sizes for large backfills and keep the default `--page-delay 1s` enabled for GameCoordinator pacing.
+
+## Build from source
+
+Requires Go 1.26+.
+
+```bash
+go test ./...
+go build -o dist/dota-mmr-history-tracker ./cmd/dota-mmr-history-tracker
+```
+
+Cross-compile examples:
+
+```bash
+GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o dist/dota-mmr-history-tracker-linux-amd64 ./cmd/dota-mmr-history-tracker
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o dist/dota-mmr-history-tracker-windows-amd64.exe ./cmd/dota-mmr-history-tracker
+```
+
+## Release builds
+
+GitHub Actions builds release assets automatically when a version tag is pushed:
+
+```bash
+git tag v0.1.0
+git push origin main --tags
+```
+
+The release workflow uploads:
+
+```text
+dota-mmr-history-tracker-linux-amd64
+dota-mmr-history-tracker-linux-arm64
+dota-mmr-history-tracker-windows-amd64.exe
+```
+
+The normal `build` workflow still runs tests and uploads CI artifacts for branches and pull requests.
 
 ## Architecture
 

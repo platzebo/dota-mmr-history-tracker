@@ -27,5 +27,5 @@ func TestIndexContainsInteractiveDashboardControls(t *testing.T) {
 			t.Fatalf("index missing %q", want)
 		}
 	}
-	
+
 }
